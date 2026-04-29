@@ -1,0 +1,63 @@
+"""Тесты парсинга пользовательского конфига и пресетов вариантов."""
+
+from neweds.core.variant_presets import expand_variants
+from neweds.io.user_input import build_run_spec, parse_user_input
+
+
+def test_parse_user_input_key_value() -> None:
+    cfg = parse_user_input("preset=causal; max_lag=10; window_sizes=128,256")
+    assert cfg["preset"] == "causal"
+    assert cfg["max_lag"] == "10"
+    assert cfg["window_sizes"] == "128,256"
+
+
+def test_parse_user_input_json() -> None:
+    cfg = parse_user_input('{"preset":"basic","max_lag":7}')
+    assert cfg == {"preset": "basic", "max_lag": 7}
+
+
+def test_build_run_spec_defaults_and_lists() -> None:
+    spec = build_run_spec(
+        {
+            "variants": "mutinf_full, te_directed",
+            "window_sizes": "256,512",
+            "window_stride": "64",
+        },
+        default_max_lag=12,
+    )
+    assert spec.variants == ["mutinf_full", "te_directed"]
+    assert spec.max_lag == 12
+    assert spec.window_sizes == [256, 512]
+    assert spec.window_stride == 64
+
+
+def test_build_run_spec_accepts_gui_variant_tuples() -> None:
+    spec = build_run_spec(
+        {
+            "variants": [
+                ("corr_full", "Корреляция (full)"),
+                ("te_directed", "Transfer Entropy (directed)"),
+            ]
+        },
+        default_max_lag=12,
+    )
+    assert spec.variants == ["corr_full", "te_directed"]
+
+
+def test_expand_variants_preset_and_unique() -> None:
+    variants, explain = expand_variants(["basic", "te_directed", "basic"])
+    assert "preset 'basic'" in explain
+    # После канонизации алиасов ожидаем canonical-имя variant
+    assert variants.count("correlation_full") == 1
+    assert variants.count("te_directed") == 1
+
+
+def test_expand_variants_all_matches_registry() -> None:
+    variants, explain = expand_variants(["all"])
+    assert "preset 'all'" in explain
+    assert "te_full" in variants
+    assert "te_partial" in variants
+    assert "correlation_directed" in variants
+    assert "h2_directed" in variants
+    assert "granger_partial" in variants
+    assert "te_directed" not in variants
