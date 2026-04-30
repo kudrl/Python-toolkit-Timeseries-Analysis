@@ -1,26 +1,27 @@
-# Refactoring story
 
-NewEDS started as a compact research script and was later split into a small Python package for tabular time-series connectivity analysis.
+NewEDS (старое назвнаие, кое-где втсречается в документации) начинался как компактный исследовательский скрипт, а позже был преобразован в небольшой пакет на Python для табличного анализа связности временных рядов.
 
-## Initial state
+## Начальное состояние
 
-- loading, preprocessing, metric execution and reporting lived in one flow;
-- report generation depended on an older result shape;
-- group comparison used domain-specific labels;
-- fallback handling was broad in several exploratory branches.
+- загрузка, предварительная обработка, выполнение показателей и создание отчетов проходили в одном потоке;
+- формирование отчета зависело от более старой формы результатов;
+- при групповом сравнении использовались метки, зависящие от домена;
+- в нескольких исследовательских ветвях была широко распространена резервная обработка.
 
-## Current state
+## Текущее состояние
 
-- the single-file tabular pipeline is the stable entry point;
-- metric metadata and lookup live in the registry;
-- case/control naming is neutral in the group layer;
-- formula evaluation is isolated behind a restricted evaluator;
-- tests cover the public API, CLI, loader behavior and metric regressions.
+- конвейер с одним файлом и таблицей является стабильной точкой входа;
+- метаданные метрик и поиск в реестре постоянно обновляются;
+- присвоение имен регистрам/элементам управления нейтрально на групповом уровне;
+- вычисление формул выполняется изолированно с помощью ограниченного средства оценки;
+- тесты охватывают общедоступный API, интерфейс командной строки, поведение загрузчика и регрессию показателей.
 
-## Remaining technical debt
+## Остающаяся техническая задолженность
 
-- reduce broad exception handling in analysis/reporting modules;
-- split the HTML report generator;
-- split preprocessing into smaller stages;
-- make group pipeline thinner;
-- tighten optional dependency handling.
+- сокращена обработка исключений в модулях анализа/отчетности.;
+- разделить генератор HTML-отчетов;
+- разбить предварительную обработку на более мелкие этапы;
+- сделать групповой конвейер более тонким;
+- упростить обработку необязательных зависимостей.
+
+- Одна из старых версий сохранена в репозитории https://github.com/kudrl/toolkit-refactored.git
