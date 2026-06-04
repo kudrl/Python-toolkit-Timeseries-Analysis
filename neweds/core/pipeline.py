@@ -17,7 +17,7 @@ from neweds.core.data_loader import load_or_generate
 from neweds.core.metric_runner import compute_metric
 from neweds.core.results import AnalysisResult, MetricResult
 from neweds.core.statistics import fdr_bh
-from neweds.core.window_scanner import analyze_sliding_windows
+from neweds.core.window_scanner import analyze_sliding_windows, analyze_window_lag_cube
 from neweds.metrics.registry import get_metric
 
 DEFAULT_PUBLIC_VARIANTS = [
@@ -239,6 +239,67 @@ def _run_windows(
     return windows
 
 
+def _default_cube_window_sizes(n: int) -> list[int]:
+    """Компактная сетка размеров окон для cube scan, если пользователь не задал её явно."""
+    n = int(max(2, n))
+    candidates = [max(2, n // 3), max(2, n // 2), n]
+    return sorted({int(max(2, min(n, w))) for w in candidates})
+
+
+def _run_window_cube(
+    signal_data: pd.DataFrame,
+    variant: str,
+    config: AnalysisConfig,
+    *,
+    controls: list[str],
+    control_matrix: np.ndarray | None,
+) -> dict[str, Any]:
+    level = str(getattr(config, "window_cube", "off") or "off").strip().lower()
+    if level in {"", "off", "none", "false"}:
+        return {}
+
+    sizes = list(config.window_sizes or _default_cube_window_sizes(len(signal_data)))
+    stride = config.window_stride or max(1, min(sizes) // 2)
+    lag_grid = list(range(1, int(max(1, config.max_lag)) + 1))
+    eval_limit_default = 240 if level == "full" else 120
+    eval_limit = int(max(1, getattr(config, "window_cube_eval_limit", eval_limit_default)))
+    matrix_limit = int(max(0, getattr(config, "window_cube_matrix_limit", 60)))
+    if level == "basic":
+        eval_limit = min(eval_limit, 120)
+        matrix_limit = min(matrix_limit, 60)
+
+    metric = get_metric(variant)
+
+    def _compute(chunk: pd.DataFrame, name: str, *, lag: int = 1, **params):
+        cm = None
+        if control_matrix is not None:
+            positions = signal_data.index.get_indexer(chunk.index)
+            cm = control_matrix[positions]
+        return _compute_variant(
+            chunk,
+            name,
+            lag=lag,
+            controls=controls,
+            control_matrix=cm,
+        )
+
+    cube = analyze_window_lag_cube(
+        signal_data,
+        variant,
+        window_sizes=sizes,
+        lag_grid=lag_grid,
+        stride=int(stride),
+        compute_variant_func=_compute,
+        is_pvalue=metric.pvalue_based,
+        eval_limit=eval_limit,
+        matrix_limit=matrix_limit,
+    )
+    if cube:
+        cube["level"] = level
+        cube["stride"] = int(stride)
+    return cube
+
+
 def run_analysis(
     input_path: str,
     config: AnalysisConfig,
@@ -313,6 +374,16 @@ def run_analysis(
             "matrix_columns": list(signal_columns),
             "pvalue_correction": str(config.pvalue_correction),
         }
+
+        cube = _run_window_cube(
+            signal_data,
+            variant,
+            config,
+            controls=control_columns,
+            control_matrix=control_matrix,
+        )
+        if cube:
+            metadata["window_scans"] = {"cube": cube}
 
         contract = ComputationContract(
             variant=variant,

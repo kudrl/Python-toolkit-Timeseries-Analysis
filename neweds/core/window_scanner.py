@@ -116,3 +116,108 @@ def analyze_sliding_windows(
         "ticks": ticks,
         "extremes": select_best_median_worst(ticks, key="metric"),
     }
+
+
+def analyze_window_lag_cube(
+    data: pd.DataFrame,
+    variant: str,
+    *,
+    window_sizes: list[int],
+    lag_grid: list[int],
+    stride: int,
+    compute_variant_func,
+    is_pvalue: bool,
+    eval_limit: int = 120,
+    matrix_limit: int = 60,
+    max_windows_per_size: int = 80,
+) -> dict:
+    """3D-скан window_size × lag × start_pos для отчета.
+
+    Возвращает компактный payload, совместимый с HTML-рендером:
+    ``points`` для scatter3d, ``gallery`` и ``matrices`` для просмотра теплокарт.
+    """
+    if data is None or data.empty:
+        return {}
+
+    n = int(len(data))
+    sizes = sorted({int(max(2, min(w, n))) for w in (window_sizes or []) if int(w) > 1})
+    lags = sorted({int(max(1, lag)) for lag in (lag_grid or [])})
+    if not sizes or not lags:
+        return {}
+
+    stride = int(max(1, stride))
+    eval_limit = int(max(1, eval_limit))
+    matrix_limit = int(max(0, matrix_limit))
+    max_windows_per_size = int(max(1, max_windows_per_size))
+
+    jobs: list[tuple[int, int, int, int]] = []
+    for w in sizes:
+        starts = list(range(0, max(0, n - w) + 1, stride))
+        if len(starts) > max_windows_per_size:
+            idx = np.linspace(0, len(starts) - 1, max_windows_per_size).round().astype(int)
+            starts = [starts[i] for i in idx]
+        for lag in lags:
+            for start in starts:
+                jobs.append((int(w), int(lag), int(start), int(start + w)))
+
+    if len(jobs) > eval_limit:
+        idx = np.linspace(0, len(jobs) - 1, eval_limit).round().astype(int)
+        jobs = [jobs[i] for i in idx]
+
+    points: list[dict] = []
+    matrices_added = 0
+    for idx, (w, lag, start, end) in enumerate(jobs):
+        pid = f"w{w}_l{lag}_s{start}"
+        try:
+            chunk = data.iloc[start:end]
+            mat = compute_variant_func(chunk, variant, lag=int(lag))
+            score = lag_quality(variant, mat, is_pvalue)
+            score_f = float(score) if np.isfinite(score) else float("nan")
+            matrix = mat if matrices_added < matrix_limit else None
+            if matrix is not None:
+                matrices_added += 1
+        except Exception as ex:
+            logging.error("[WindowLagCube] %s w=%d lag=%d start=%d: %s", variant, w, lag, start, ex)
+            score_f = float("nan")
+            matrix = None
+        points.append(
+            {
+                "id": pid,
+                "window_size": int(w),
+                "lag": int(lag),
+                "start": int(start),
+                "end": int(end),
+                "metric": score_f,
+                "matrix": matrix,
+            }
+        )
+
+    idxs = select_best_median_worst(points, key="metric")
+    id_extremes = {
+        key: (points[val]["id"] if isinstance(val, int) and 0 <= val < len(points) else None)
+        for key, val in idxs.items()
+    }
+    for tag, pid in id_extremes.items():
+        if pid is None:
+            continue
+        for point in points:
+            if point.get("id") == pid:
+                point["tag"] = tag
+                break
+
+    gallery_ids = [pid for pid in [id_extremes.get("best"), id_extremes.get("median"), id_extremes.get("worst")] if pid]
+    gallery = [dict(p) for p in points if p.get("id") in set(gallery_ids)]
+    selectable_ids = [str(p["id"]) for p in points if p.get("matrix") is not None]
+
+    return {
+        "matrix_mode": "limited",
+        "matrix_limit": int(matrix_limit),
+        "eval_limit": int(eval_limit),
+        "combos": [{"window_size": w, "lag": lag} for w in sizes for lag in lags],
+        "window_sizes": sizes,
+        "lag_grid": lags,
+        "points": points,
+        "gallery": gallery,
+        "selectable_ids": selectable_ids,
+        "extremes": id_extremes,
+    }

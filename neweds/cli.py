@@ -54,11 +54,45 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         help="AR-detrend порядка p (0 = выключено).",
     )
+    p.add_argument(
+        "--window-sizes",
+        default="",
+        help="Размеры окон через запятую для sliding/cube анализа, например 64,128,256.",
+    )
+    p.add_argument(
+        "--window-stride",
+        type=int,
+        default=None,
+        help="Шаг скользящего окна. По умолчанию подбирается автоматически.",
+    )
+    p.add_argument(
+        "--window-cube",
+        choices=["off", "basic", "full"],
+        default="off",
+        help="3D-скан window_size x lag x start_pos для HTML-отчета.",
+    )
+    p.add_argument(
+        "--window-cube-eval-limit",
+        type=int,
+        default=120,
+        help="Максимум точек cube scan.",
+    )
+    p.add_argument(
+        "--window-cube-matrix-limit",
+        type=int,
+        default=60,
+        help="Сколько матриц хранить для интерактивных теплокарт cube scan.",
+    )
     return p
 
 
 def _split_csv(text: str) -> list[str]:
     return [item.strip() for item in str(text or "").split(",") if item.strip()]
+
+
+def _split_int_csv(text: str) -> list[int] | None:
+    vals = [int(item) for item in _split_csv(text)]
+    return vals or None
 
 
 def _run_one(input_path: str, out_dir: str, args: argparse.Namespace) -> dict[str, str]:
@@ -78,6 +112,11 @@ def _run_one(input_path: str, out_dir: str, args: argparse.Namespace) -> dict[st
         normalize=not args.no_normalize,
         remove_outliers=not args.no_remove_outliers,
         ar_order=int(args.ar_order),
+        window_sizes=_split_int_csv(args.window_sizes),
+        window_stride=args.window_stride,
+        window_cube=str(args.window_cube),
+        window_cube_eval_limit=int(args.window_cube_eval_limit),
+        window_cube_matrix_limit=int(args.window_cube_matrix_limit),
     )
 
 
@@ -107,6 +146,11 @@ def main() -> None:
             normalize=not args.no_normalize,
             remove_outliers=not args.no_remove_outliers,
             ar_order=int(args.ar_order),
+            window_sizes=_split_int_csv(args.window_sizes),
+            window_stride=args.window_stride,
+            window_cube=str(args.window_cube),
+            window_cube_eval_limit=int(args.window_cube_eval_limit),
+            window_cube_matrix_limit=int(args.window_cube_matrix_limit),
         )
         if zip_path:
             print(f"ZIP: {zip_path}")

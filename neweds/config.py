@@ -113,6 +113,9 @@ class AnalysisConfig:
     window_sizes: list[int] | None = None
     window_stride: int | None = None
     window_policy: str = "best"
+    window_cube: str = "off"
+    window_cube_eval_limit: int = 120
+    window_cube_matrix_limit: int = 60
 
     lag_selection: str = "fixed"
     master_seed: int = 12345

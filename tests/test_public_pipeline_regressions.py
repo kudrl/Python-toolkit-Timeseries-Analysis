@@ -174,3 +174,41 @@ def test_pvalue_correction_and_windows_are_exposed(monkeypatch) -> None:
     assert np.isclose(matrix[0, 1], 0.06)
     assert np.isclose(matrix[1, 0], 0.08)
     assert "granger_full" in result.windows
+
+
+def test_window_lag_cube_is_exposed_in_metric_metadata(monkeypatch) -> None:
+    def _fake_loader(*args, **kwargs):
+        df = pd.DataFrame(
+            {
+                "x": np.arange(10, dtype=float),
+                "y": np.roll(np.arange(10, dtype=float), -1),
+            }
+        )
+        return df, type("Report", (), {"steps_global": []})()
+
+    def _fake_compute(data, variant, *, lag=1, control=None, **params):
+        value = float(len(data) * int(lag))
+        return np.array([[0.0, value], [value / 2.0, 0.0]], dtype=float)
+
+    monkeypatch.setattr(public_pipeline, "load_or_generate", _fake_loader)
+    monkeypatch.setattr(public_pipeline, "compute_metric", _fake_compute)
+
+    result = run_analysis(
+        "input.csv",
+        AnalysisConfig(
+            variants=["correlation_directed"],
+            max_lag=3,
+            window_sizes=[4, 6],
+            window_stride=2,
+            window_cube="basic",
+            window_cube_eval_limit=20,
+            window_cube_matrix_limit=5,
+        ),
+    )
+
+    cube = result.metrics["correlation_directed"].metadata["window_scans"]["cube"]
+    assert cube["window_sizes"] == [4, 6]
+    assert cube["lag_grid"] == [1, 2, 3]
+    assert cube["points"]
+    assert set(cube["extremes"]) == {"best", "median", "worst"}
+    assert len([p for p in cube["points"] if p["matrix"] is not None]) <= 5

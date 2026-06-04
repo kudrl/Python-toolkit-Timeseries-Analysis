@@ -77,6 +77,11 @@ def run_one_analysis(
     normalize: bool = True,
     remove_outliers: bool = True,
     ar_order: int = 0,
+    window_sizes: list[int] | None = None,
+    window_stride: int | None = None,
+    window_cube: str = "off",
+    window_cube_eval_limit: int = 120,
+    window_cube_matrix_limit: int = 60,
 ) -> dict[str, str]:
     """Прогоняет анализ для одного файла и возвращает строку манифеста."""
 
@@ -92,6 +97,11 @@ def run_one_analysis(
         normalize=bool(normalize),
         remove_outliers=bool(remove_outliers),
         ar_order=int(ar_order),
+        window_sizes=list(window_sizes) if window_sizes else None,
+        window_stride=int(window_stride) if window_stride is not None else None,
+        window_cube=str(window_cube),
+        window_cube_eval_limit=int(window_cube_eval_limit),
+        window_cube_matrix_limit=int(window_cube_matrix_limit),
     )
     result = run_analysis(input_file, cfg, controls=list(controls) if controls else None)
 
@@ -141,6 +151,11 @@ def run_batch(
     normalize: bool = True,
     remove_outliers: bool = True,
     ar_order: int = 0,
+    window_sizes: list[int] | None = None,
+    window_stride: int | None = None,
+    window_cube: str = "off",
+    window_cube_eval_limit: int = 120,
+    window_cube_matrix_limit: int = 60,
 ) -> tuple[list[dict[str, str]], str, str | None]:
     """Прогоняет анализ для каждого поддерживаемого файла в каталоге и пишет манифест."""
 
@@ -169,6 +184,11 @@ def run_batch(
                     normalize=normalize,
                     remove_outliers=remove_outliers,
                     ar_order=ar_order,
+                    window_sizes=window_sizes,
+                    window_stride=window_stride,
+                    window_cube=window_cube,
+                    window_cube_eval_limit=window_cube_eval_limit,
+                    window_cube_matrix_limit=window_cube_matrix_limit,
                 )
             )
         except Exception as exc:

@@ -50,6 +50,30 @@ Python-проект для анализа связности многокана�
 | P-value коррекция | поддерживает `none`, `bonferroni`, `fdr_bh` для p-value-метрик | `neweds.core.pipeline` |
 | Отчеты | сохраняет HTML/Excel, connectivity-матрицы и служебные сводки запуска | `neweds.reporting` |
 
+### Оконно-лаговый 3D-куб
+
+Для directed-метрик можно сразу при запуске построить скан
+`window_size × lag × start_pos`: код перебирает размеры окна, лаги и позиции
+окна, считает качество матрицы связности и добавляет интерактивный 3D-график в
+HTML-отчет.
+
+Необходимо для локализации того, где именно наблюдается связь.
+
+```bash
+neweds examples/demo_timeseries.csv \
+  --variants correlation_directed \
+  --lags 3 \
+  --lag-selection optimize \
+  --window-sizes 4,6,8 \
+  --window-stride 2 \
+  --window-cube basic \
+  --output-dir outputs/window_cube_demo
+```
+
+Пример статичной картинки из такого прогона:
+
+![Пример 3D-куба window_size × lag × start_pos](docs/assets/window_cube_demo.png)
+
 ## Установка
 
 ```bash
